@@ -20,6 +20,8 @@ export function hc(args: string[]): Promise<ExecResult>;
 export function home(): string;
 /** The app's folder (`~/.config/herdr-app`, or `$HERDR_APP_HOME`): settings.json, keys.json, layouts/. */
 export function appHome(): string;
+/** The app's name as people see it: `Herdr`, or a renamed build's. */
+export function appName(): string;
 /** True while `herdr-app check` loads this mod: `init()` runs for real there
  *  (exec and writeTextFile included), so guard process side effects. */
 export function checking(): boolean;

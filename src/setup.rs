@@ -15,7 +15,7 @@ use gpui::*;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-const ICON: &[u8] = include_bytes!("../assets/icons/herdr-ui-icon-clean.png");
+const ICON: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icons/", env!("HERDR_BRAND_ICON")));
 #[cfg(not(windows))]
 const APP_INSTALL: &str = "curl -fsSL https://releases.herdr.dev/app/install.sh | sh";
 #[cfg(windows)]
@@ -76,13 +76,13 @@ pub struct Setup {
 pub fn open(need: Need, requests: async_channel::Receiver<Request>, cx: &mut App) {
     let options = WindowOptions {
         window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, size(px(620.0), px(460.0)), cx))),
-        titlebar: Some(TitlebarOptions { title: Some("Herdr".into()), ..Default::default() }),
+        titlebar: Some(TitlebarOptions { title: Some(env!("HERDR_BRAND").into()), ..Default::default() }),
         app_id: Some("herdr-app".into()),
         ..Default::default()
     };
     let icon = Arc::new(Image::from_bytes(ImageFormat::Png, ICON.to_vec()));
     cx.open_window(options, |_, cx| cx.new(|_| Setup { need, state: State::Ready, requests: Some(requests), icon }))
-        .expect("cannot open the Herdr window");
+        .expect(concat!("cannot open the ", env!("HERDR_BRAND"), " window"));
     cx.activate(true);
 }
 
@@ -167,29 +167,29 @@ impl Setup {
     fn words(&self) -> (String, String, String) {
         match &self.need {
             Need::Install => (
-                "Herdr needs herdr-core".into(),
-                "herdr-core runs your terminals and agents, and keeps them alive when this window closes. Herdr couldn't find it on this computer.".into(),
+                concat!(env!("HERDR_BRAND"), " needs herdr-core").into(),
+                concat!("herdr-core runs your terminals and agents, and keeps them alive when this window closes. ", env!("HERDR_BRAND"), " couldn't find it on this computer.").into(),
                 format!("Install it for me puts it in {CORE_PLACE} (with hc), like its own installer: {CORE_INSTALL}"),
             ),
             Need::Connect(error) => (
-                "Herdr can't connect to herdr-core".into(),
+                concat!(env!("HERDR_BRAND"), " can't connect to herdr-core").into(),
                 error.clone(),
                 "Once you've resolved this, try again.".into(),
             ),
             Need::Fix(Mismatch::TooOld { have, need }) => (
-                "Herdr needs a newer herdr-core".into(),
-                format!("Yours is {have}; this Herdr needs {need} or newer. Updating keeps your terminals running."),
+                concat!(env!("HERDR_BRAND"), " needs a newer herdr-core").into(),
+                format!("Yours is {have}; this {} needs {need} or newer. Updating keeps your terminals running.", env!("HERDR_BRAND")),
                 "Or update it yourself: hc update".into(),
             ),
             Need::Fix(Mismatch::Missing(methods)) => (
-                "Herdr needs a newer herdr-core".into(),
-                format!("Your herdr-core can't do everything this Herdr needs ({}). Updating keeps your terminals running.", methods.join(", ")),
+                concat!(env!("HERDR_BRAND"), " needs a newer herdr-core").into(),
+                format!("Your herdr-core can't do everything this {} needs ({}). Updating keeps your terminals running.", env!("HERDR_BRAND"), methods.join(", ")),
                 "Or update it yourself: hc update".into(),
             ),
             Need::Fix(Mismatch::Newer { generation }) => (
-                "This Herdr is older than your herdr-core".into(),
-                format!("Your herdr-core speaks a newer protocol (generation {generation}) than this Herdr understands. Update Herdr; your terminals keep running."),
-                format!("Update Herdr: {APP_INSTALL}"),
+                concat!("This ", env!("HERDR_BRAND"), " is older than your herdr-core").into(),
+                format!("Your herdr-core speaks a newer protocol (generation {generation}) than this {brand} understands. Update {brand}; your terminals keep running.", brand = env!("HERDR_BRAND")),
+                format!("Update {}: {APP_INSTALL}", env!("HERDR_BRAND")),
             ),
         }
     }

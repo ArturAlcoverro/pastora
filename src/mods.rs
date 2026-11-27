@@ -57,11 +57,18 @@ pub fn note_fonts(cx: &gpui::App) {
     *FONTS.lock().unwrap() = names;
 }
 
+/// The home's folder name under the config root: `herdr-app`, or what the
+/// build set in `HERDR_APP_DIR_NAME` (a renamed build keeps its own home).
+pub const APP_DIR_NAME: &str = match option_env!("HERDR_APP_DIR_NAME") {
+    Some(name) => name,
+    None => "herdr-app",
+};
+
 /// The app's home: `$HERDR_APP_HOME` (tests, experiments), else
 /// `$XDG_CONFIG_HOME/herdr-app`, else `~/.config/herdr-app`, on every OS.
 pub fn app_dir() -> PathBuf {
     let env = |k: &str| std::env::var_os(k).filter(|v| !v.is_empty()).map(PathBuf::from);
-    env("HERDR_APP_HOME").unwrap_or_else(|| env("XDG_CONFIG_HOME").unwrap_or_else(|| home().join(".config")).join("herdr-app"))
+    env("HERDR_APP_HOME").unwrap_or_else(|| env("XDG_CONFIG_HOME").unwrap_or_else(|| home().join(".config")).join(APP_DIR_NAME))
 }
 
 pub fn mods_dir() -> PathBuf {
@@ -1159,6 +1166,7 @@ fn module(inst: Instance, copy: u64) -> HostModule {
         .function("checking", |_| Ok(HostValue::Bool(checking())))
         .function("home", |_| Ok(home().to_string_lossy().into_owned().into()))
         .function("appHome", |_| Ok(app_dir().to_string_lossy().into_owned().into()))
+        .function("appName", |_| Ok(env!("HERDR_BRAND").into()))
         .function("fonts", |_| Ok(to_host(&json!(*FONTS.lock().unwrap()))))
         .function("updates", |_| Ok(to_host(&crate::update::status())))
         .function("presentUpdateNotes", |a| {

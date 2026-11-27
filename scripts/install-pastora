@@ -1,0 +1,49 @@
+#!/bin/bash
+# Builds this checkout as "Pastora": ~/Applications/Pastora.app, the `pastora`
+# command and its own home, ~/.config/pastora, so it sits beside an installed
+# Herdr.app without touching it (its bundle, its herdr-app link, its home).
+# Needs Rust 1.95 and Zig 0.16 (ZIG=/path/to/zig if it isn't on PATH).
+set -euo pipefail
+
+[[ $(uname -s) == Darwin ]] || { echo 'This installer requires macOS.' >&2; exit 1; }
+cd "$(dirname "$0")/.."
+export HERDR_APP_DIR_NAME=pastora HERDR_APP_NAME=Pastora HERDR_APP_ICON=pastora-icon.png
+export CARGO_NET_GIT_FETCH_WITH_CLI=true
+cargo build --release
+
+app="$HOME/Applications/Pastora.app"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$HOME/.local/bin"
+# Replace atomically so installing does not interrupt a running Pastora.
+cp target/release/herdr-app "$app/Contents/MacOS/Pastora.new"
+mv -f "$app/Contents/MacOS/Pastora.new" "$app/Contents/MacOS/Pastora"
+chmod +x "$app/Contents/MacOS/Pastora"
+icon=assets/icons/Pastora.icns
+[[ -f $icon ]] || icon=assets/icons/Herdr.icns
+cp "$icon" "$app/Contents/Resources/Pastora.icns"
+
+cat > "$app/Contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+    <key>CFBundleExecutable</key><string>Pastora</string>
+    <key>CFBundleIdentifier</key><string>dev.pastora.app</string>
+    <key>CFBundleName</key><string>Pastora</string>
+    <key>CFBundleDisplayName</key><string>Pastora</string>
+    <key>CFBundleIconFile</key><string>Pastora</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>0.0.1</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>NSMicrophoneUsageDescription</key><string>Terminal programs running in Pastora can use the microphone, for example for voice input.</string>
+    <key>NSCameraUsageDescription</key><string>Terminal programs running in Pastora can use the camera.</string>
+    <key>NSAppleEventsUsageDescription</key><string>Terminal programs running in Pastora can use AppleScript to control other apps.</string>
+    <key>NSPrincipalClass</key><string>NSApplication</string>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>LSEnvironment</key><dict/></dict></plist>
+PLIST
+# Finder does not inherit a login shell's PATH; hc must still be discoverable.
+/usr/libexec/PlistBuddy -c "Add :LSEnvironment:PATH string $HOME/.local/bin:/opt/homebrew/bin:$PATH" "$app/Contents/Info.plist"
+codesign --force --sign - "$app"
+# The app only repairs a link to a bundle named Herdr.app, so this one is ours to make.
+ln -sfn "$app/Contents/MacOS/Pastora" "$HOME/.local/bin/pastora"
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$app" || echo "Launch Services did not register it; opening it from Finder does."
+echo "Installed $app and ~/.local/bin/pastora. Quit and reopen Pastora to use the new build."

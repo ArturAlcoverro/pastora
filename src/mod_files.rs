@@ -52,7 +52,7 @@ fn write(path: &Path, text: &str, expected: Option<&str>) -> Result<(), String> 
     }
     if read(path)?.as_deref() != expected {
         return Err(
-            "The file changed outside Herdr. Reload before saving; your draft is still here."
+            concat!("The file changed outside ", env!("HERDR_BRAND"), ". Reload before saving; your draft is still here.")
                 .into(),
         );
     }

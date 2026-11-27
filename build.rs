@@ -38,6 +38,14 @@ fn main() {
     embed(&base, "defaults/mods", "DEFAULT_MODS", "default_mods.rs");
     embed(&base, "defaults/icons", "DEFAULT_ICONS", "default_icons.rs");
     embed(&base, "defaults/frame", "FRAME_MODS", "frame_mods.rs");
+    // The name people see (window, menus, notices): Herdr, or the build's own.
+    println!("cargo:rerun-if-env-changed=HERDR_APP_NAME");
+    let brand = std::env::var("HERDR_APP_NAME").ok().filter(|n| !n.is_empty()).unwrap_or_else(|| "Herdr".into());
+    println!("cargo:rustc-env=HERDR_BRAND={brand}");
+    // Its icon in the setup window: a file in assets/icons/.
+    println!("cargo:rerun-if-env-changed=HERDR_APP_ICON");
+    let icon = std::env::var("HERDR_APP_ICON").ok().filter(|n| !n.is_empty()).unwrap_or_else(|| "herdr-ui-icon-clean.png".into());
+    println!("cargo:rustc-env=HERDR_BRAND_ICON={icon}");
 
     // Windows takes the window, taskbar and Start menu icon from the program file.
     #[cfg(windows)]
