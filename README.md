@@ -10,8 +10,6 @@
   · <a href="https://github.com/herdrdev/herdr-app/blob/a2e8e3ffa84439d4a245a1e6aa8947ef0dd20a1b/README.md">Herdr's README</a>
 </p>
 
-The first commit is Herdr unchanged; each change of the fork follows as its own commit.
-
 ## What it adds
 
 - **Its own name, icon and home.** `HERDR_APP_NAME`, `HERDR_APP_ICON` and `HERDR_APP_DIR_NAME` at build time; mods read the name with `appName()`. Installs beside Herdr without touching it.
@@ -25,14 +23,4 @@ macOS, Rust 1.95 and Zig 0.16:
 ```sh
 git clone --recurse-submodules git@github.com:ArturAlcoverro/pastora.git
 cd pastora && scripts/install-pastora
-```
-
-## Updating Herdr
-
-`herdr` holds one commit per imported Herdr version; `main` is the fork on top.
-
-```sh
-git fetch origin --tags   # origin: herdrdev/herdr-app
-git branch -f herdr "$(git commit-tree 'v0.1.19^{tree}' -p herdr -m 'chore: import herdr-app 0.1.19')"
-git switch main && git rebase herdr
 ```
