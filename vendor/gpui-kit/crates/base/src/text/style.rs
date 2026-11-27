@@ -25,6 +25,13 @@ pub struct TextViewStyle {
     table_head: StyleRefinement,
     table_cell: StyleRefinement,
     inline_code: HighlightStyle,
+    /// HERDR: refinements for the parts that otherwise only take the shared
+    /// muted and border colors, and highlights layered on bold and italic.
+    blockquote: StyleRefinement,
+    list_marker: StyleRefinement,
+    rule: StyleRefinement,
+    strong: HighlightStyle,
+    emphasis: HighlightStyle,
     /// The table body background, or the theme surface when `None`. Only
     /// [`Self::on_text_color`] sets it, to let a table on an inverted surface
     /// show that surface.
@@ -47,6 +54,11 @@ impl PartialEq for TextViewStyle {
             && self.table_head == other.table_head
             && self.table_cell == other.table_cell
             && self.inline_code == other.inline_code
+            && self.blockquote == other.blockquote
+            && self.list_marker == other.list_marker
+            && self.rule == other.rule
+            && self.strong == other.strong
+            && self.emphasis == other.emphasis
             && self.table_background == other.table_background
             && self.is_dark == other.is_dark
     }
@@ -90,6 +102,11 @@ impl TextViewStyle {
                 background_color: Some(colors.accent),
                 ..Default::default()
             },
+            blockquote: StyleRefinement::default(),
+            list_marker: StyleRefinement::default(),
+            rule: StyleRefinement::default(),
+            strong: HighlightStyle::default(),
+            emphasis: HighlightStyle::default(),
             table_background: None,
             is_dark,
         }
@@ -157,6 +174,36 @@ impl TextViewStyle {
     /// its edge.
     pub fn with_code_block(mut self, style: StyleRefinement) -> Self {
         self.code_block = style;
+        self
+    }
+
+    /// HERDR: a refinement for blockquotes, over their muted text and border.
+    pub fn with_blockquote(mut self, style: StyleRefinement) -> Self {
+        self.blockquote = style;
+        self
+    }
+
+    /// HERDR: a refinement for list markers (bullets and numbers).
+    pub fn with_list_marker(mut self, style: StyleRefinement) -> Self {
+        self.list_marker = style;
+        self
+    }
+
+    /// HERDR: a refinement for horizontal rules (a 1px line by default).
+    pub fn with_rule(mut self, style: StyleRefinement) -> Self {
+        self.rule = style;
+        self
+    }
+
+    /// HERDR: a highlight layered on bold text.
+    pub fn with_strong(mut self, style: HighlightStyle) -> Self {
+        self.strong = style;
+        self
+    }
+
+    /// HERDR: a highlight layered on italic text.
+    pub fn with_emphasis(mut self, style: HighlightStyle) -> Self {
+        self.emphasis = style;
         self
     }
 
@@ -268,6 +315,31 @@ impl TextViewStyle {
     /// fallback in [`Self::inline_code_highlight`] applies.
     pub fn inline_code(&self) -> HighlightStyle {
         self.inline_code
+    }
+
+    /// HERDR: the blockquote refinement.
+    pub fn blockquote(&self) -> &StyleRefinement {
+        &self.blockquote
+    }
+
+    /// HERDR: the list marker refinement.
+    pub fn list_marker(&self) -> &StyleRefinement {
+        &self.list_marker
+    }
+
+    /// HERDR: the horizontal rule refinement.
+    pub fn rule(&self) -> &StyleRefinement {
+        &self.rule
+    }
+
+    /// HERDR: the highlight layered on bold text.
+    pub fn strong(&self) -> HighlightStyle {
+        self.strong
+    }
+
+    /// HERDR: the highlight layered on italic text.
+    pub fn emphasis(&self) -> HighlightStyle {
+        self.emphasis
     }
 
     /// Whether content-specific assets should use their dark variant.

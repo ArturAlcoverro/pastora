@@ -2507,6 +2507,22 @@ const BASE: &str = r#"  /** A row. */
      * the HTML stay clickable. Applies to `TextView.markdown`.
      */
     raw_html(value?: boolean): this;
+    /** HERDR: the text color of inline code (`like this`), over the theme's. Markdown only. */
+    inline_code_color(color: Color): this;
+    /** HERDR: the badge behind inline code, over the theme's. Markdown only. */
+    inline_code_background(color: Color): this;
+    /** HERDR: the color of links, over the theme's primary. */
+    link_color(color: Color): this;
+    /**
+     * HERDR: styles one part of the Markdown with the ordinary style methods,
+     * over the theme's: `md_style("table_head", s => s.bg(c).px(10))`.
+     * Boxes (`h1`…`h6`, `code_block`, `table`, `table_head`, `table_cell`,
+     * `blockquote`, `list_marker`, `rule`) take any style. Text runs
+     * (`inline_code`, `strong`, `emphasis`) take color, bg, weight, italic,
+     * underline and strikethrough; `link` and `text` (the body) take their text color. Chain once per
+     * part; later calls refine earlier ones. Markdown only.
+     */
+    md_style(part: "text" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "code_block" | "table" | "table_head" | "table_cell" | "blockquote" | "list_marker" | "rule" | "inline_code" | "strong" | "emphasis" | "link", style: (style: NativeElement) => void): this;
   }
   export const TextView: {
     html(id: string, html: string): TextViewElement;

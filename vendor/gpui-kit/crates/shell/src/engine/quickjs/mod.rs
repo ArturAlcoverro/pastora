@@ -5345,6 +5345,35 @@ impl ShellRuntime {
             "cell_style" => "cell_style",
             "cell_active_style" => "cell_active_style",
             "caret_style" => "caret_style",
+            // HERDR: a TextView's Markdown parts, from `md_style(part, s => …)`.
+            "md:text" => "md:text",
+            "md:h1" => "md:h1",
+            "md:h2" => "md:h2",
+            "md:h3" => "md:h3",
+            "md:h4" => "md:h4",
+            "md:h5" => "md:h5",
+            "md:h6" => "md:h6",
+            "md:code_block" => "md:code_block",
+            "md:table" => "md:table",
+            "md:table_head" => "md:table_head",
+            "md:table_cell" => "md:table_cell",
+            "md:inline_code" => "md:inline_code",
+            "md:link" => "md:link",
+            "md:blockquote" => "md:blockquote",
+            "md:list_marker" => "md:list_marker",
+            "md:rule" => "md:rule",
+            "md:strong" => "md:strong",
+            "md:emphasis" => "md:emphasis",
+            other if other.starts_with("md:") => {
+                return Err(Exception::throw_type(
+                    ctx,
+                    &format!(
+                        "md_style: unknown part `{}`; expected {}",
+                        &other[3..],
+                        "text, h1, h2, h3, h4, h5, h6, code_block, table, table_head, table_cell, inline_code, link, blockquote, list_marker, rule, strong, emphasis"
+                    ),
+                ));
+            }
             other => {
                 return Err(Exception::throw_type(
                     ctx,
@@ -5986,6 +6015,15 @@ globalThis.__gpui = (() => {
   methods.cell_style = state("cell_style");
   methods.cell_active_style = state("cell_active_style");
   methods.caret_style = state("caret_style");
+  // HERDR: a TextView's Markdown parts, styled with the ordinary style
+  // methods: md_style("table_head", s => s.bg(...).px(10)).
+  methods.md_style = function (part, declare) {
+    if (typeof part !== "string" || typeof declare !== "function") {
+      throw new TypeError('md_style(part, s => ...) expects a part name such as "table_head" and a function');
+    }
+    declare(element(__state(this.__id, "md:" + part)));
+    return this;
+  };
 
   // The argument checks are here rather than only on the Rust side because a
   // list built with the pieces in the wrong order — a render function where the
@@ -7518,6 +7556,9 @@ impl ShellRuntime {
                 "highlight_range",
                 "scrollable",
                 "raw_html",
+                "inline_code_color",
+                "inline_code_background",
+                "link_color",
                 "selected",
                 "checked",
                 "accessibility_label",
@@ -8563,6 +8604,9 @@ impl ShellRuntime {
             | "highlight_range"
             | "scrollable"
             | "raw_html"
+            | "inline_code_color"
+            | "inline_code_background"
+            | "link_color"
             | "selected"
             | "checked"
             | "accessibility_label"
@@ -8623,6 +8667,9 @@ impl ShellRuntime {
                     "highlight_range" => "highlight_range",
                     "scrollable" => "scrollable",
                     "raw_html" => "raw_html",
+                    "inline_code_color" => "inline_code_color",
+                    "inline_code_background" => "inline_code_background",
+                    "link_color" => "link_color",
                     "selected" => "selected",
                     "checked" => "checked",
                     "tooltip" => "tooltip",

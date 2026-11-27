@@ -1164,6 +1164,13 @@ keyboard with `focus()` and give it back with `blur()`. Herdr then hands the
 keyboard to the dialog or pane, and the field stays usable. `release()` frees
 the state. Text: `TextView.markdown(id, text)` renders Markdown.
 `.raw_html(false)` shows embedded HTML tags and blocks as literal text.
+`.inline_code_color(c)`, `.inline_code_background(c)` and `.link_color(c)`
+replace the theme's colors for inline code and links. `.md_style(part, s => …)`
+styles one part with the ordinary style methods: `h1`…`h6`, `code_block`,
+`table`, `table_head`, `table_cell`, `blockquote`, `list_marker` and `rule`
+take any style; `inline_code`, `strong` and `emphasis` take text color, `bg`,
+weight, italic, underline and strikethrough; `link` and `text` (the body)
+take their text color.
 Markdown autolinks stay clickable. With
 `.selectable(true)`, `.on_selection_change((s, cx) => …)` gets a settled
 selection or `null` when it clears. `s.text` matches what copying the selected

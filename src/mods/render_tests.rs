@@ -951,6 +951,49 @@ export default class Demo extends View {
 }
 
 #[gpui::test]
+fn a_mod_styles_every_markdown_part_of_a_text_view(cx: &mut TestAppContext) {
+    use gpui::{Modifiers, MouseButton, VisualTestContext, point, px};
+    use gpui_base::TextSelection;
+
+    cx.update(gpui_shell::init);
+    let staged = Staged::new();
+    std::fs::write(staged.0.join("main.js"), r##"
+import { View } from "gpui-kit";
+import { TextView, v_flex } from "gpui-base";
+const SOURCE = "# One\n\n## Two\n\nSome **bold**, *slanted*, `code` and a [link](https://example.com).\n\n> quoted\n\n- item\n1. first\n\n---\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n```\nblock\n```";
+export default class Demo extends View {
+  render() {
+    let text = TextView.markdown("text", SOURCE).selectable(true)
+      .inline_code_color("#e5c07b").inline_code_background("#ff000033").link_color("#61afef");
+    for (const part of ["h1", "h2", "h3", "h4", "h5", "h6", "code_block", "table", "table_head", "table_cell", "blockquote", "list_marker", "rule"]) {
+      text = text.md_style(part, (s) => s.bg("#11223344").text_color("#c678dd").px(4).rounded(4));
+    }
+    for (const part of ["inline_code", "strong", "emphasis", "link", "text"]) {
+      text = text.md_style(part, (s) => s.text_color("#98c379").bg("#00000022"));
+    }
+    return v_flex().w(600).child(text.md_style("h1", (s) => s.text_size(30)));
+  }
+}
+"##).unwrap();
+    let runtime = ShellRuntime::new_isolated().unwrap();
+    let window = cx.add_window(|window, cx| {
+        RootedView(runtime.try_load(&staged.0, window, cx).unwrap())
+    });
+    let mut context = VisualTestContext::from_window(window.into(), cx);
+    context.run_until_parked();
+    context.update(|window, cx| window.draw(cx).clear(cx));
+    // Styled, the text is still all there and still selectable.
+    let position = point(px(8.), px(8.));
+    context.simulate_mouse_down(position, MouseButton::Left, Modifiers::default());
+    context.simulate_mouse_up(position, MouseButton::Left, Modifiers::default());
+    context.simulate_keystrokes(if cfg!(target_os = "macos") { "cmd-a" } else { "ctrl-a" });
+    let text = context.update(|window, cx| TextSelection::selected_text(window, cx));
+    for expected in ["One", "Two", "bold", "slanted", "code", "link", "quoted", "item", "first", "block"] {
+        assert!(text.contains(expected), "{expected:?} missing from {text:?}");
+    }
+}
+
+#[gpui::test]
 fn a_mod_can_show_literal_html_in_a_markdown_text_view(cx: &mut TestAppContext) {
     use gpui::{Modifiers, MouseButton, VisualTestContext, point, px};
     use gpui_base::TextSelection;

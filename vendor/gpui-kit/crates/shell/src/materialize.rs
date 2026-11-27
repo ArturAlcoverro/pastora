@@ -318,6 +318,13 @@ struct Behavior {
     text_scrollable: Option<bool>,
     /// HERDR: `raw_html(false)` keeps a TextView's Markdown HTML as text.
     raw_html: Option<bool>,
+    /// HERDR: `inline_code_color(color)`, `inline_code_background(color)` and
+    /// `link_color(color)` on a TextView, over the theme's.
+    inline_code_color: Option<gpui::Hsla>,
+    inline_code_background: Option<gpui::Hsla>,
+    link_color: Option<gpui::Hsla>,
+    /// HERDR: `md_style(part, s => …)` on a TextView, in call order.
+    md_styles: Vec<(&'static str, StyleRefinement)>,
     on_link_click: Option<CallbackId>,
     /// HERDR: `on_selection_change(handler)` on a TextView.
     on_selection_change: Option<CallbackId>,
@@ -1124,7 +1131,7 @@ fn materialize_component(
                 crate::spec::TextViewFormat::Html => TextView::html(spec.id, spec.text),
                 crate::spec::TextViewFormat::Markdown => TextView::markdown(spec.id, spec.text),
             }
-            .style(TextViewStyle::from_theme(&Theme::global(cx)));
+            .style(text_view_style(&behavior, cx));
             if let Some(selectable) = behavior.selectable {
                 view = view.selectable(selectable);
             }
@@ -2803,6 +2810,7 @@ pub(in crate::materialize) fn resolve_ops(
                     "cell_style" => behavior.cell_style = Some(resolved),
                     "cell_active_style" => behavior.cell_active_style = Some(resolved),
                     "caret_style" => behavior.caret_style = Some(resolved),
+                    other if other.starts_with("md:") => behavior.md_styles.push((other, resolved)),
                     other => tracing::error!("unhandled state style `{other}`"),
                 }
             }
@@ -3507,6 +3515,100 @@ pub(crate) fn dock_placement(name: &str) -> Option<gpui_base::dock::DockPlacemen
     }
 }
 
+/// HERDR: the theme's TextView colors, with a script's overrides on top.
+fn text_view_style(behavior: &Behavior, cx: &App) -> TextViewStyle {
+    let mut style = TextViewStyle::from_theme(&Theme::global(cx));
+    if let Some(color) = behavior.link_color {
+        style = style.with_link(color);
+    }
+    if behavior.inline_code_color.is_some() || behavior.inline_code_background.is_some() {
+        let mut code = style.inline_code();
+        if let Some(color) = behavior.inline_code_color {
+            code.color = Some(color);
+        }
+        if let Some(color) = behavior.inline_code_background {
+            code.background_color = Some(color);
+        }
+        style = style.with_inline_code(code);
+    }
+    let mut headings: [Option<StyleRefinement>; 6] = Default::default();
+    for (part, refinement) in &behavior.md_styles {
+        let refined = |base: &StyleRefinement| {
+            let mut base = base.clone();
+            base.refine(refinement);
+            base
+        };
+        style = match &part[3..] {
+            "code_block" => { let s = refined(style.code_block()); style.with_code_block(s) }
+            "table" => { let s = refined(style.table()); style.with_table(s) }
+            "table_head" => { let s = refined(style.table_head()); style.with_table_head(s) }
+            "table_cell" => { let s = refined(style.table_cell()); style.with_table_cell(s) }
+            "blockquote" => { let s = refined(style.blockquote()); style.with_blockquote(s) }
+            "list_marker" => { let s = refined(style.list_marker()); style.with_list_marker(s) }
+            "rule" => { let s = refined(style.rule()); style.with_rule(s) }
+            "inline_code" => { let h = highlight_over(style.inline_code(), refinement); style.with_inline_code(h) }
+            "strong" => { let h = highlight_over(style.strong(), refinement); style.with_strong(h) }
+            "emphasis" => { let h = highlight_over(style.emphasis(), refinement); style.with_emphasis(h) }
+            "link" => match refinement.text.color {
+                Some(color) => style.with_link(color),
+                None => style,
+            },
+            // The body text: what headings, bold and lists draw in unless styled.
+            "text" => match refinement.text.color {
+                Some(color) => style.with_foreground(color),
+                None => style,
+            },
+            heading => {
+                if let Some(level) = heading.strip_prefix('h').and_then(|n| n.parse::<usize>().ok()).filter(|n| (1..=6).contains(n)) {
+                    let slot = &mut headings[level - 1];
+                    let mut merged = slot.take().unwrap_or_default();
+                    merged.refine(refinement);
+                    *slot = Some(merged);
+                }
+                style
+            }
+        };
+    }
+    if headings.iter().any(Option::is_some) {
+        let base = style.clone();
+        style = style.with_heading(move |level| {
+            let mut s = base.heading(level);
+            if let Some(Some(extra)) = headings.get(usize::from(level).wrapping_sub(1)) {
+                s.refine(extra);
+            }
+            s
+        });
+    }
+    style
+}
+
+/// HERDR: the text parts of a style refinement as a highlight over `base`:
+/// color, background, weight, slant, underline, strikethrough.
+fn highlight_over(mut base: gpui::HighlightStyle, refinement: &StyleRefinement) -> gpui::HighlightStyle {
+    let text = &refinement.text;
+    if let Some(color) = text.color {
+        base.color = Some(color);
+    }
+    let background = text.background_color
+        .or_else(|| refinement.background.as_ref().and_then(|fill| fill.color()).and_then(|bg| bg.as_solid()));
+    if let Some(color) = background {
+        base.background_color = Some(color);
+    }
+    if let Some(weight) = text.font_weight {
+        base.font_weight = Some(weight);
+    }
+    if let Some(slant) = text.font_style {
+        base.font_style = Some(slant);
+    }
+    if let Some(underline) = text.underline {
+        base.underline = Some(underline);
+    }
+    if let Some(strike) = text.strikethrough {
+        base.strikethrough = Some(strike);
+    }
+    base
+}
+
 fn apply_behavior(behavior: &mut Behavior, name: &str, args: &[Bridged]) {
     let flag = args.first().map(Bridged::is_truthy);
     // Before the table below, and with its own early return: a dock command
@@ -3574,6 +3676,17 @@ fn apply_behavior(behavior: &mut Behavior, name: &str, args: &[Bridged]) {
         },
         "scrollable" => behavior.text_scrollable = Some(flag.unwrap_or(true)),
         "raw_html" => behavior.raw_html = Some(flag.unwrap_or(true)),
+        "inline_code_color" | "inline_code_background" | "link_color" => {
+            match args.first().map(|color| color.as_color()) {
+                Some(Ok(color)) => match name {
+                    "inline_code_color" => behavior.inline_code_color = Some(color),
+                    "inline_code_background" => behavior.inline_code_background = Some(color),
+                    _ => behavior.link_color = Some(color),
+                },
+                Some(Err(error)) => tracing::warn!("{name} ignored: {error}"),
+                None => tracing::warn!("{name}(color) ignored: no color"),
+            }
+        }
         "selected" => behavior.selected = flag.unwrap_or(true),
         "checked" => behavior.checked = flag.unwrap_or(true),
         "value" => behavior.value = args.first().and_then(|value| value.as_f32().ok()),

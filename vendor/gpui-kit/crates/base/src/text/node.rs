@@ -2392,9 +2392,11 @@ fn mark_highlight(mark: &TextMark, node_cx: &NodeContext, cx: &App) -> InlineHig
     let mut highlight = HighlightStyle::default();
     if mark.bold {
         highlight.font_weight = Some(FontWeight::BOLD);
+        highlight = highlight.highlight(node_cx.style.strong());
     }
     if mark.italic {
         highlight.font_style = Some(FontStyle::Italic);
+        highlight = highlight.highlight(node_cx.style.emphasis());
     }
     if mark.strikethrough {
         highlight.strikethrough = Some(gpui::StrikethroughStyle {
@@ -3309,6 +3311,7 @@ impl BlockNode {
                         .pr(indent * 0.3)
                         .text_right()
                         .text_color(style.muted_foreground())
+                        .refine_style(style.list_marker())
                         .child(
                             list_item_prefix(
                                 ix,
@@ -3926,6 +3929,7 @@ impl BlockNode {
                     .border_l_2()
                     .border_color(node_cx.style.border())
                     .pl(body_font_size(node_cx, window) * 0.9)
+                    .refine_style(node_cx.style.blockquote())
                     .children({
                         let children_len = children.len();
                         children.into_iter().enumerate().map(move |(index, c)| {
@@ -4036,7 +4040,7 @@ impl BlockNode {
                 div()
                     .pt(top)
                     .when(!options.is_last, |this| this.pb(space))
-                    .child(div().bg(node_cx.style.border()).h(px(1.)))
+                    .child(div().bg(node_cx.style.border()).h(px(1.)).refine_style(node_cx.style.rule()))
                     .into_any_element()
             }
             BlockNode::Break { .. } => div().into_any_element(),
