@@ -83,9 +83,11 @@ pub fn watch(home: &Path, #[cfg(test)] executor: gpui::BackgroundExecutor) -> Op
     let base = root.clone();
     let revisions = Arc::new(Mutex::new(Revisions::default()));
     let event_revisions = revisions.clone();
+    let links = links(&root);
+    let event_links = links.clone();
     let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
         let mut revisions = event_revisions.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let (changed, rescan) = changes(&base, event);
+        let (changed, rescan) = changes(&base, event.map(|e| relink(&event_links, e)));
         revisions.changed(&changed, rescan);
         drop(revisions);
         if !changed.is_empty() {
@@ -98,8 +100,60 @@ pub fn watch(home: &Path, #[cfg(test)] executor: gpui::BackgroundExecutor) -> Op
     .map_err(|e| tracing::warn!("file watching unavailable ({e}); polling instead"))
     .ok()?;
     watcher.watch(&root, RecursiveMode::Recursive).map_err(|e| tracing::warn!("cannot watch {} ({e}); polling instead", root.display())).ok()?;
+    // A linked file is watched through its folder: editors save by replacing it.
+    let mut folders = HashSet::new();
+    for link in &links {
+        let (path, mode) = if link.dir { (link.target.clone(), RecursiveMode::Recursive) } else {
+            match link.target.parent() {
+                Some(parent) if folders.insert(parent.to_path_buf()) => (parent.to_path_buf(), RecursiveMode::NonRecursive),
+                _ => continue,
+            }
+        };
+        if let Err(e) = watcher.watch(&path, mode) {
+            tracing::warn!("cannot watch {} ({e}); it is checked now and then", path.display());
+        }
+    }
     WATCHER.set(std::sync::Mutex::new(watcher)).ok()?;
     Some(FileEvents { changes: rx, root, revisions })
+}
+
+/// PASTORA: an entry of the home that is a symlink, for a home that shares
+/// another one's config. The OS reports its changes under the real path,
+/// outside the home: those are watched too and named as the home's.
+#[derive(Clone, Debug)]
+struct Link {
+    /// The entry in the home, as events name it.
+    home: PathBuf,
+    /// Where it really is.
+    target: PathBuf,
+    dir: bool,
+}
+
+/// The home's symlinked entries that change what the app shows.
+fn links(root: &Path) -> Vec<Link> {
+    let Ok(entries) = std::fs::read_dir(root) else { return Vec::new() };
+    entries.flatten()
+        .filter(|entry| entry.file_type().is_ok_and(|t| t.is_symlink()) && watched(Path::new(&entry.file_name())))
+        .filter_map(|entry| {
+            let target = entry.path().canonicalize().ok()?;
+            (!target.starts_with(root)).then(|| Link { home: root.join(entry.file_name()), dir: target.is_dir(), target })
+        })
+        .collect()
+}
+
+/// An event's paths under a link's target, named as the home's entry.
+fn relink(links: &[Link], mut event: notify::Event) -> notify::Event {
+    for path in &mut event.paths {
+        let home = links.iter().find_map(|link| match path.strip_prefix(&link.target) {
+            Ok(rest) if rest.as_os_str().is_empty() => Some(link.home.clone()),
+            Ok(rest) if link.dir => Some(link.home.join(rest)),
+            _ => None,
+        });
+        if let Some(home) = home {
+            *path = home;
+        }
+    }
+    event
 }
 
 // Native callbacks cannot wake GPUI's deterministic test scheduler directly.
@@ -544,6 +598,32 @@ mod tests {
             assert!(!changed.contains(&PathBuf::from("mods/one")));
             assert!(!changed.contains(&PathBuf::from("mods/two")));
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_home_that_links_another_ones_config_sees_its_edits() {
+        let dir = std::env::temp_dir().join(format!("herdr-watch-links-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let (shared, home) = (dir.join("shared"), dir.join("home"));
+        std::fs::create_dir_all(shared.join("layouts")).unwrap();
+        std::fs::create_dir_all(shared.join("data")).unwrap();
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::write(shared.join("settings.json"), "{}").unwrap();
+        for name in ["layouts", "data", "settings.json"] {
+            std::os::unix::fs::symlink(shared.join(name), home.join(name)).unwrap();
+        }
+        let (shared, home) = (shared.canonicalize().unwrap(), home.canonicalize().unwrap());
+        let links = links(&home);
+        // data/ is the app's own state: not watched, so not linked either.
+        assert_eq!(links.len(), 2, "{links:?}");
+        let event = notify::Event::new(notify::EventKind::Any)
+            .add_path(shared.join("layouts/pastora.json"))
+            .add_path(shared.join("settings.json"))
+            .add_path(shared.join("keys.json"));
+        let (changed, _) = changes(&home, Ok(relink(&links, event)));
+        assert_eq!(changed, vec![PathBuf::from("layouts/pastora.json"), PathBuf::from("settings.json")]);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
